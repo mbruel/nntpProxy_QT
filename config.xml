@@ -1,0 +1,42 @@
+<NntpProxyConfig>
+	<port>563</port>
+	<portMonitoring>11111</portMonitoring>
+	<socketTimeout>50000</socketTimeout>
+	<debug>yes</debug>
+	<monitoring>yes</monitoring>
+	<clientSSL>yes</clientSSL>
+	<logFolder>/var/log/nntpProxy</logFolder>
+	<maxUserConnections>5</maxUserConnections>
+	<database>
+		<qtDriver>QMYSQL</qtDriver>
+		<type>mysql</type>
+		<driver>com.mysql.jdbc.Driver</driver>
+		<host>localhost</host>
+		<port>6606</port>
+		<login><![CDATA[my encrypted login]]></login>
+		<pass><![CDATA[my encrypted pass]]></pass>
+		<dbName>nntpProxy</dbName>
+	</database>
+	<server>
+		<name>news.myprovider.com</name>
+		<port>563</port>
+		<authinfo>
+			<login><![CDATA[my encrypted login]]></login>
+			<pass><![CDATA[my encrypted pass]]></pass>
+		</authinfo>
+		<maxConnections>10</maxConnections>
+		<ssl>yes</ssl>
+	</server>
+<!--
+	<server>
+		<name>news.myprovider.com</name>
+		<port>119</port>
+		<authinfo>
+			<login><![CDATA[my encrypted login]]></login>
+			<pass><![CDATA[my encrypted pass]]></pass>
+		</authinfo>
+		<maxConnections>1</maxConnections>
+		<ssl>no</ssl>
+	</server>
+-->
+</NntpProxyConfig>
