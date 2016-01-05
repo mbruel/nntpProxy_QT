@@ -11,7 +11,8 @@
 
 Connection::Connection(qintptr aSocketDescriptor, bool ssl, bool servSocket, const char * aClassName):
     QObject(), iSocketDescriptor(aSocketDescriptor), isSsl(ssl),
-    isServerSocket(servSocket), iSocket(Q_NULLPTR), iLogPrefix(aClassName)
+    isServerSocket(servSocket), iSocket(Q_NULLPTR), iOutputCon(Q_NULLPTR),
+    iLogPrefix(aClassName)
 {
     iLogPrefix.append("[").append(QString::number(iSocketDescriptor)).append("] ");
 
