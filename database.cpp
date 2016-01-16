@@ -1,11 +1,12 @@
 #include "database.h"
 #include "user.h"
 #include <QSqlQuery>
+#include <QSqlRecord>
 #include <QDate>
 #include <QMutexLocker>
 
 Database::Database():
-    mMutex(), iConnectionTrial(0), iLogPrefix("[Database] ")
+    mMutex(), iLogPrefix("[Database] ")
 {
 #ifdef LOG_CONSTRUCTORS
     _log("Constructor");
@@ -60,26 +61,51 @@ bool Database::connect(){
         return true;
     }
     else{
-
-        bool ret = iDb.open();
-        if (!ret){
-            _log(QString("Error connecting to DB: ").append(iDb.lastError().text()) );
-            if (iConnectionTrial < cDatabaseConnectionTry){
-                _log("Let's try again...");
-                ++iConnectionTrial;
-                iDb = QSqlDatabase::database();
-                connect();
-            }
-
-        } else {
+        bool ret;
+        ushort nbTry = 0;
+        do {
+            ret = iDb.open();
+            if (!ret){
+                _log_error("connecting to the DB", iDb.lastError());
 #ifdef LOG_DATABASE_ACTIONS
+                _log("[connect] Let's try to close the database and reOpen...");
+#endif
+                iDb.close();
+            }
+        } while (!ret && (nbTry++ < cDatabaseConnectionTry));
+
+#ifdef LOG_DATABASE_ACTIONS
+        if (ret)
             _log("Database connected");
 #endif
-        }
         return ret;
     }
 }
 
+bool Database::prepareSqlRequest(QSqlQuery &aQuery, const char * aSqlReq){
+    bool ret;
+    ushort nbTry = 0;
+    do{
+        ret = aQuery.prepare(aSqlReq);
+        if (!ret){
+            _log_error("preparing request", aQuery.lastError());
+
+            // Error #2006, MySQL server has gone away QMYSQL3: Unable to prepare statement
+            if (aQuery.lastError().number() == cMysqlConnectionTimeout){
+#ifdef LOG_DATABASE_ACTIONS
+                _log("[prepareSqlRequest] MySql Timeout, let's close the connection and reopen it");
+#endif
+                iDb.close();
+                connect();
+
+                // Closing the DB invalidate all QSqlQuery, we need to recreate it
+                aQuery = QSqlQuery();
+            }
+        }
+    } while (!ret && (nbTry++ < 1));
+
+    return ret;
+}
 
 bool Database::checkAuthentication(User *const aUser, const QString aPass){
     QMutexLocker lock(&mMutex);
@@ -88,12 +114,10 @@ bool Database::checkAuthentication(User *const aUser, const QString aPass){
         return false;
 
     QSqlQuery qCheckAuthentication;
-    bool ret = qCheckAuthentication.prepare(
-                "select id, blocked from auth "
-                "where (login = :login) and (pass = :pass)");
-
+    bool ret = prepareSqlRequest(qCheckAuthentication, cSqlCheckAuthentication);
     if (!ret){
-        _log(QString("Error preparing request...").append(qCheckAuthentication.lastError().text()));
+        _log_error("preparing request qCheckAuthentication", qCheckAuthentication.lastError());
+        qCheckAuthentication.finish();
         return ret;
     }
 
@@ -102,7 +126,8 @@ bool Database::checkAuthentication(User *const aUser, const QString aPass){
 
     ret = qCheckAuthentication.exec();
     if (!ret){
-        _log(QString("Error preparing request...").append(qCheckAuthentication.lastError().text()));
+        _log_error("executing request qCheckAuthentication", qCheckAuthentication.lastError());
+        qCheckAuthentication.finish();
         return ret;
     }
 
@@ -113,6 +138,7 @@ bool Database::checkAuthentication(User *const aUser, const QString aPass){
         ostream << "There are no records for this user/pass: ("
                 << aUser->getLogin() << " : " << aPass << ")";
         NntpProxy::releaseLog();
+        qCheckAuthentication.finish();
         return false;
     }
 
@@ -139,21 +165,36 @@ uint Database::addUserSize(User *const aUser){
     int size = aUser->getDownloadedSize()/1048576; // in MB
 
     // Out parameter code is MySQL specific
-    callStored.prepare("call add_user_size_QT(:p_user_id, :p_month, :p_ip, :p_size, @m_size)");
-
-    callStored.bindValue(":p_user_id", aUser->getDbId(), QSql::In);
-    callStored.bindValue(":p_month", theMonth, QSql::In);
-    callStored.bindValue(":p_ip", aUser->getIp(), QSql::In);
-    callStored.bindValue(":p_size", size, QSql::InOut);
-
-    if(!callStored.exec()) {
+    if (!prepareSqlRequest(callStored, cSqlAddUserSize)) {
         QTextStream &ostream = NntpProxy::acquireLog(iLogPrefix);
-        ostream << "Error addUserSize(user: " << aUser->getLogin()
+        QSqlError err = callStored.lastError();
+        ostream << "Error #" << err.number()
+                << ", preparing addUserSize(user: " << aUser->getLogin()
                 << " (dbId: " << aUser->getDbId() << ") "
                 << "ip: " << aUser->getIp()
                 << ", download size: " << size
                 << ", month: " << theMonth
-                << "): " << callStored.lastError().text();
+                << "): " << err.text();
+        NntpProxy::releaseLog();
+        callStored.finish();
+        return 0;
+    }
+
+    callStored.bindValue(":p_user_id", aUser->getDbId(), QSql::In);
+    callStored.bindValue(":p_month", theMonth, QSql::In);
+    callStored.bindValue(":p_ip", aUser->getIp(), QSql::In);
+    callStored.bindValue(":p_size", size, QSql::In);
+
+    if(!callStored.exec()) {
+        QTextStream &ostream = NntpProxy::acquireLog(iLogPrefix);
+        QSqlError err = callStored.lastError();
+        ostream << "Error #" << err.number()
+                << ", executing addUserSize(user: " << aUser->getLogin()
+                << " (dbId: " << aUser->getDbId() << ") "
+                << "ip: " << aUser->getIp()
+                << ", download size: " << size
+                << ", month: " << theMonth
+                << "): " << err.text();
         NntpProxy::releaseLog();
         callStored.finish();
         return 0;

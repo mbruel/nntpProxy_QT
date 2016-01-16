@@ -29,8 +29,10 @@ static const constexpr char* cSslCertificate = "./cert.pem";
 
 enum LOG_LEVEL {LOG_ALL = 0, LOG_MEDIUM_TRACE=4, LOG_SHORT_TRACE=9};
 
-static const ushort cAuthenticationTry       = 5;
-static const ushort cDatabaseConnectionTry   = 3;
+static const ushort    cAuthenticationTry       = 5;
+static const ushort    cDatabaseConnectionTry   = 3;
+static const ushort    cMysqlConnectionTimeout  = 2006;
+
 static const LOG_LEVEL cDefaultLogLevel      = LOG_ALL;
 static const ushort    cDefaultPortNntp      = 119;
 static const ushort    cDefaultPortMonitor   = 1111;
@@ -38,6 +40,12 @@ static const ushort    cDefaultSocketTimeout = 5000;
 static const ushort    cDefaultMaxConPerUser = 3;
 static const bool      cIsClientSSL          = false;
 static const bool      cUseMonitorServer     = false;
+
+static const constexpr char* cSqlCheckAuthentication =
+        "select id, blocked from auth where (login = :login) and (pass = :pass);";
+
+static const constexpr char* cSqlAddUserSize         =
+        "call add_user_size_QT(:p_user_id, :p_month, :p_ip, :p_size, @m_size);";
 
 
 struct NntpServerParameters{

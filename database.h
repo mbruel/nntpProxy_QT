@@ -46,15 +46,25 @@ public:
 private:
     inline void _log(const QString & aMessage) const; //!< log function for QString
     inline void _log(const char    * aMessage) const; //!< log function for char *
+    inline void _log_error(const char * aMessage, const QSqlError & aErr) const;
+
+    bool prepareSqlRequest(QSqlQuery &aQuery, const char * aSqlReq);
+
 
 private:
-    QSqlDatabase      iDb;              //!< actual Database connection
-    QMutex            mMutex;           //!< Mutex to be thread safe
-    ushort            iConnectionTrial; //!< Number of trial to connect to the DB
-    const QString     iLogPrefix;       //!< log prefix
-
+    QSqlDatabase              iDb;              //!< actual Database connection
+    QMutex                    mMutex;           //!< Mutex to be thread safe
+    const QString             iLogPrefix;       //!< log prefix
 };
 
 void Database::_log(const char* aMessage) const {NntpProxy::log(iLogPrefix, aMessage);}
 void Database::_log(const QString & aMessage) const {NntpProxy::log(iLogPrefix, aMessage);}
+void Database::_log_error(const char * aMessage, const QSqlError & aErr) const{
+    QTextStream &ostream = NntpProxy::acquireLog(iLogPrefix);
+    ostream << "Error #"   << aErr.number()
+            << ", "        << aMessage
+            << ", error: " << aErr.text();
+    NntpProxy::releaseLog();
+}
+
 #endif // DATABASE_H
